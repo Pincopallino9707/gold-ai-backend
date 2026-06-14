@@ -9,47 +9,51 @@ app.use(cors());
 
 const PORT = 3001;
 
-// cache per evitare richieste continue
 let cachedPrice = null;
 let lastFetch = 0;
 
-// 🔥 GOLD PRICE DA YAHOO FINANCE (STABILE + FREE)
+// 🔥 TWELVE DATA GOLD PRICE
 async function getGoldPrice() {
   const now = Date.now();
 
-  // cache 10 secondi (live ma stabile)
+  // cache 10 secondi per evitare rate limit
   if (cachedPrice && now - lastFetch < 10000) {
     return cachedPrice;
   }
 
-  try {
-    const response = await axios.get(
-      "https://query1.finance.yahoo.com/v7/finance/quote?symbols=XAUUSD%3DX"
-    );
+  const apiKey = process.env.TWELVEDATA_API_KEY;
 
-    const result = response.data?.quoteResponse?.result?.[0];
-
-    if (!result || !result.regularMarketPrice) {
-      throw new Error("Invalid Yahoo response");
-    }
-
-    cachedPrice = {
-      price: Number(result.regularMarketPrice),
-      time: Date.now(),
-    };
-
-    lastFetch = now;
-
-    return cachedPrice;
-  } catch (error) {
-    console.error("Price fetch error:", error.message);
-
-    // fallback (evita crash frontend)
-    return cachedPrice || { price: 0, time: Date.now() };
+  if (!apiKey) {
+    throw new Error("Missing TWELVEDATA_API_KEY in .env");
   }
+
+  const response = await axios.get(
+    "https://api.twelvedata.com/price",
+    {
+      params: {
+        symbol: "XAU/USD",
+        apikey: apiKey,
+      },
+    }
+  );
+
+  const price = response.data?.price;
+
+  if (!price) {
+    throw new Error("Invalid Twelve Data response");
+  }
+
+  cachedPrice = {
+    price: Number(price),
+    time: Date.now(),
+  };
+
+  lastFetch = now;
+
+  return cachedPrice;
 }
 
-// API ENDPOINT
+// API
 app.get("/price", async (req, res) => {
   try {
     const data = await getGoldPrice();
@@ -57,7 +61,7 @@ app.get("/price", async (req, res) => {
     res.json({
       success: true,
       data,
-      source: "yahoo-finance",
+      source: "twelve-data",
     });
   } catch (error) {
     res.status(500).json({
@@ -67,7 +71,6 @@ app.get("/price", async (req, res) => {
   }
 });
 
-// START SERVER
 app.listen(PORT, () => {
   console.log(`🔥 Server running on http://localhost:${PORT}`);
 });
