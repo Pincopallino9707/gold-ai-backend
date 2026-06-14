@@ -1,29 +1,37 @@
+require("dotenv").config();
+
 const express = require("express");
 const cors = require("cors");
+const axios = require("axios");
 
 const app = express();
 app.use(cors());
 
 const PORT = 3001;
 
-// 💡 GOLD MOCK STABILE (per evitare blocchi API)
-// poi lo sostituiamo con feed reale quando deployi
-let price = 2350;
+app.get("/price", async (req, res) => {
+  try {
+    const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
 
-setInterval(() => {
-  const change = (Math.random() - 0.5) * 2;
-  price = +(price + change).toFixed(2);
-}, 3000);
+    const response = await axios.get(
+      `https://www.alphavantage.co/query?function=GOLD_SILVER_SPOT&symbol=GOLD&apikey=${apiKey}`
+    );
 
-app.get("/price", (req, res) => {
-  res.json({
-    success: true,
-    price,
-    time: Date.now(),
-    source: "simulated-stable-feed"
-  });
+    res.json({
+      success: true,
+      data: response.data,
+      source: "alpha-vantage"
+    });
+  } catch (error) {
+    console.error(error.message);
+
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
 });
 
 app.listen(PORT, () => {
-  console.log(`🔥 Server running on http://localhost:${PORT}`);
+  console.log(`Server running on http://localhost:${PORT}`);
 });
