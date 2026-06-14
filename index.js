@@ -9,38 +9,47 @@ app.use(cors());
 
 const PORT = 3001;
 
+// cache per evitare richieste continue
 let cachedPrice = null;
 let lastFetch = 0;
 
-// 🔥 GOLD REAL PRICE (Yahoo Finance - stabile, no API key)
+// 🔥 GOLD PRICE DA YAHOO FINANCE (STABILE + FREE)
 async function getGoldPrice() {
   const now = Date.now();
 
-  // cache 10 secondi (per avere aggiornamento “live” ma stabile)
+  // cache 10 secondi (live ma stabile)
   if (cachedPrice && now - lastFetch < 10000) {
     return cachedPrice;
   }
 
-  const response = await axios.get(
-    "https://query1.finance.yahoo.com/v7/finance/quote?symbols=XAUUSD%3DX"
-  );
+  try {
+    const response = await axios.get(
+      "https://query1.finance.yahoo.com/v7/finance/quote?symbols=XAUUSD%3DX"
+    );
 
-  const result = response.data?.quoteResponse?.result?.[0];
+    const result = response.data?.quoteResponse?.result?.[0];
 
-  if (!result || !result.regularMarketPrice) {
-    throw new Error("Invalid Yahoo Finance response");
+    if (!result || !result.regularMarketPrice) {
+      throw new Error("Invalid Yahoo response");
+    }
+
+    cachedPrice = {
+      price: Number(result.regularMarketPrice),
+      time: Date.now(),
+    };
+
+    lastFetch = now;
+
+    return cachedPrice;
+  } catch (error) {
+    console.error("Price fetch error:", error.message);
+
+    // fallback (evita crash frontend)
+    return cachedPrice || { price: 0, time: Date.now() };
   }
-
-  cachedPrice = {
-    price: Number(result.regularMarketPrice),
-    time: Date.now(),
-  };
-
-  lastFetch = now;
-
-  return cachedPrice;
 }
 
+// API ENDPOINT
 app.get("/price", async (req, res) => {
   try {
     const data = await getGoldPrice();
@@ -58,6 +67,7 @@ app.get("/price", async (req, res) => {
   }
 });
 
+// START SERVER
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`🔥 Server running on http://localhost:${PORT}`);
 });
