@@ -23,19 +23,17 @@ async function getGoldPrice() {
   const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
 
   const response = await axios.get(
-    `https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=XAU&to_currency=USD&apikey=${apiKey}`
+    `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=GLD&apikey=${apiKey}`
   );
-
+  
   const data = response.data;
-
-  // 🔥 ESTRAZIONE PREZZO CORRETTA
-  const price =
-    data?.["Realtime Currency Exchange Rate"]?.["5. Exchange Rate"];
-
+  
+  const price = data?.["Global Quote"]?.["05. price"];
+  
   if (!price) {
     throw new Error("Invalid Alpha Vantage response");
   }
-
+  
   cachedPrice = {
     price: Number(price),
     time: Date.now(),
