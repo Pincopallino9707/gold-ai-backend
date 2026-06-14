@@ -15,7 +15,7 @@ let lastFetch = 0;
 async function getGoldPrice() {
   const now = Date.now();
 
-  // cache 60 secondi (IMPORTANTISSIMO)
+  // cache 60 secondi (ANTI RATE LIMIT)
   if (cachedPrice && now - lastFetch < 60000) {
     return cachedPrice;
   }
@@ -23,10 +23,24 @@ async function getGoldPrice() {
   const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
 
   const response = await axios.get(
-    `https://www.alphavantage.co/query?function=GOLD_SILVER_SPOT&symbol=GOLD&apikey=${apiKey}`
+    `https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=XAU&to_currency=USD&apikey=${apiKey}`
   );
 
-  cachedPrice = response.data;
+  const data = response.data;
+
+  // 🔥 ESTRAZIONE PREZZO CORRETTA
+  const price =
+    data?.["Realtime Currency Exchange Rate"]?.["5. Exchange Rate"];
+
+  if (!price) {
+    throw new Error("Invalid Alpha Vantage response");
+  }
+
+  cachedPrice = {
+    price: Number(price),
+    time: Date.now(),
+  };
+
   lastFetch = now;
 
   return cachedPrice;
@@ -39,12 +53,12 @@ app.get("/price", async (req, res) => {
     res.json({
       success: true,
       data,
-      source: "alpha-vantage"
+      source: "alpha-vantage",
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: error.message
+      error: error.message,
     });
   }
 });
