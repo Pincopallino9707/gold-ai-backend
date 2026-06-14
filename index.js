@@ -7,16 +7,14 @@ const axios = require("axios");
 const app = express();
 app.use(cors());
 
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
 let cachedPrice = null;
 let lastFetch = 0;
 
-// 🔥 TWELVE DATA GOLD PRICE
 async function getGoldPrice() {
   const now = Date.now();
 
-  // cache 10 secondi per evitare rate limit
   if (cachedPrice && now - lastFetch < 10000) {
     return cachedPrice;
   }
@@ -24,7 +22,7 @@ async function getGoldPrice() {
   const apiKey = process.env.TWELVEDATA_API_KEY;
 
   if (!apiKey) {
-    throw new Error("Missing TWELVEDATA_API_KEY in .env");
+    throw new Error("TWELVEDATA_API_KEY missing");
   }
 
   const response = await axios.get(
@@ -37,14 +35,20 @@ async function getGoldPrice() {
     }
   );
 
-  const price = response.data?.price;
+  if (response.data.status === "error") {
+    throw new Error(
+      response.data.message || "Twelve Data API error"
+    );
+  }
 
-  if (!price) {
-    throw new Error("Invalid Twelve Data response");
+  const price = Number(response.data.price);
+
+  if (isNaN(price)) {
+    throw new Error("Invalid Twelve Data price");
   }
 
   cachedPrice = {
-    price: Number(price),
+    price,
     time: Date.now(),
   };
 
@@ -53,7 +57,6 @@ async function getGoldPrice() {
   return cachedPrice;
 }
 
-// API
 app.get("/price", async (req, res) => {
   try {
     const data = await getGoldPrice();
@@ -64,6 +67,8 @@ app.get("/price", async (req, res) => {
       source: "twelve-data",
     });
   } catch (error) {
+    console.error(error.message);
+
     res.status(500).json({
       success: false,
       error: error.message,
@@ -72,5 +77,5 @@ app.get("/price", async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🔥 Server running on http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
