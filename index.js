@@ -9,22 +9,39 @@ app.use(cors());
 
 const PORT = 3001;
 
+let cachedPrice = null;
+let lastFetch = 0;
+
+async function getGoldPrice() {
+  const now = Date.now();
+
+  // cache 60 secondi (IMPORTANTISSIMO)
+  if (cachedPrice && now - lastFetch < 60000) {
+    return cachedPrice;
+  }
+
+  const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
+
+  const response = await axios.get(
+    `https://www.alphavantage.co/query?function=GOLD_SILVER_SPOT&symbol=GOLD&apikey=${apiKey}`
+  );
+
+  cachedPrice = response.data;
+  lastFetch = now;
+
+  return cachedPrice;
+}
+
 app.get("/price", async (req, res) => {
   try {
-    const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
-
-    const response = await axios.get(
-      `https://www.alphavantage.co/query?function=GOLD_SILVER_SPOT&symbol=GOLD&apikey=${apiKey}`
-    );
+    const data = await getGoldPrice();
 
     res.json({
       success: true,
-      data: response.data,
+      data,
       source: "alpha-vantage"
     });
   } catch (error) {
-    console.error(error.message);
-
     res.status(500).json({
       success: false,
       error: error.message
