@@ -19,44 +19,42 @@ async function getGoldPrice() {
     return cachedPrice;
   }
 
-  const apiKey = process.env.TWELVEDATA_API_KEY;
+  const apiKey = process.env.GOLDAPI_KEY;
 
   if (!apiKey) {
-    throw new Error("TWELVEDATA_API_KEY missing");
+    throw new Error("GOLDAPI_KEY missing");
   }
 
-  const response = await axios.get(
-    "https://api.twelvedata.com/price",
-    {
-      params: {
-        symbol: "XAU/USD",
-        apikey: apiKey,
-      },
-    }
-  );
-
-  console.log("TWELVE DATA RAW:", response.data);
-
-  if (response.data.status === "error") {
-    throw new Error(
-      response.data.message || "Twelve Data API error"
+  try {
+    const response = await axios.get(
+      "https://www.goldapi.io/api/XAU/USD",
+      {
+        headers: {
+          "x-access-token": apiKey,
+          "Content-Type": "application/json",
+        },
+      }
     );
+
+    const price = Number(response.data.price);
+
+    if (isNaN(price)) {
+      throw new Error("Invalid GoldAPI price");
+    }
+
+    cachedPrice = {
+      price,
+      time: Date.now(),
+    };
+
+    lastFetch = now;
+
+    return cachedPrice;
+
+  } catch (error) {
+    console.error("GOLD API ERROR:", error.response?.data || error.message);
+    throw new Error(error.response?.data?.error || error.message);
   }
-
-  const price = Number(response.data.price);
-
-  if (isNaN(price)) {
-    throw new Error("Invalid Twelve Data price");
-  }
-
-  cachedPrice = {
-    price,
-    time: Date.now(),
-  };
-
-  lastFetch = now;
-
-  return cachedPrice;
 }
 
 app.get("/price", async (req, res) => {
@@ -66,17 +64,12 @@ app.get("/price", async (req, res) => {
     res.json({
       success: true,
       data,
-      source: "twelve-data",
+      source: "goldapi",
     });
   } catch (error) {
-    console.error(
-      "FULL ERROR:",
-      error.response?.data || error.message
-    );
-
     res.status(500).json({
       success: false,
-      error: error.response?.data || error.message,
+      error: error.message,
     });
   }
 });
