@@ -29,7 +29,7 @@ async function getGoldPrice() {
     "https://api.twelvedata.com/price",
     {
       params: {
-        symbol: "XAUUSD",
+        symbol: "XAU/USD",
         apikey: apiKey,
       },
     }
@@ -69,11 +69,14 @@ app.get("/price", async (req, res) => {
       source: "twelve-data",
     });
   } catch (error) {
-    console.error(error.message);
+    console.error(
+      "FULL ERROR:",
+      error.response?.data || error.message
+    );
 
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: error.response?.data || error.message,
     });
   }
 });
