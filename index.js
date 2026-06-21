@@ -9,64 +9,78 @@ app.use(cors());
 
 const PORT = process.env.PORT || 3001;
 
-let cachedPrice = null;
+let cached = null;
 let lastFetch = 0;
 
-async function getGoldPrice() {
+// 📊 GET CANDLES (1 MINUTE)
+async function getMarketData() {
   const now = Date.now();
 
-  if (cachedPrice && now - lastFetch < 10000) {
-    return cachedPrice;
+  if (cached && now - lastFetch < 5000) {
+    return cached;
   }
 
-  const apiKey = process.env.GOLDAPI_KEY;
+  const apiKey = process.env.TWELVEDATA_API_KEY;
 
   if (!apiKey) {
-    throw new Error("GOLDAPI_KEY missing");
+    throw new Error("TWELVEDATA_API_KEY missing");
   }
 
-  try {
-    const response = await axios.get(
-      "https://www.goldapi.io/api/XAU/USD",
-      {
-        headers: {
-          "x-access-token": apiKey,
-          "Content-Type": "application/json",
-        },
-      }
-    );
-
-    const price = Number(response.data.price);
-
-    if (isNaN(price)) {
-      throw new Error("Invalid GoldAPI price");
+  // 🕯️ OHLC candles
+  const response = await axios.get(
+    "https://api.twelvedata.com/time_series",
+    {
+      params: {
+        symbol: "XAU/USD",
+        interval: "1min",
+        outputsize: 100,
+        apikey: apiKey,
+      },
     }
+  );
 
-    cachedPrice = {
-      price,
-      time: Date.now(),
-    };
-
-    lastFetch = now;
-
-    return cachedPrice;
-
-  } catch (error) {
-    console.error("GOLD API ERROR:", error.response?.data || error.message);
-    throw new Error(error.response?.data?.error || error.message);
+  if (!response.data?.values) {
+    throw new Error("Invalid candle data from Twelve Data");
   }
+
+  const candles = response.data.values.map((c) => ({
+    time: c.datetime,
+    open: Number(c.open),
+    high: Number(c.high),
+    low: Number(c.low),
+    close: Number(c.close),
+  }));
+
+  const last = candles[0];
+
+  cached = {
+    price: last.close,
+    open: last.open,
+    high: last.high,
+    low: last.low,
+    candles,
+    time: Date.now(),
+    source: "twelve-data",
+  };
+
+  lastFetch = now;
+
+  return cached;
 }
 
+// 🚀 PRICE ENDPOINT
 app.get("/price", async (req, res) => {
   try {
-    const data = await getGoldPrice();
+    const data = await getMarketData();
 
     res.json({
       success: true,
       data,
-      source: "goldapi",
+      source: "twelve-data-candles",
     });
   } catch (error) {
+    console.error("ERROR:", error.message);
+
     res.status(500).json({
       success: false,
       error: error.message,
@@ -75,5 +89,5 @@ app.get("/price", async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
